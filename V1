@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playground Creations - Quoting Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Image & PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for printing the quote */
+        @media print {
+            #quote-form, #quote-actions, #admin-controls, #dashboard-container, #db-status-banner {
+                display: none !important;
+            }
+            .container {
+                padding: 0;
+                margin: 0;
+                max-width: 100%;
+            }
+            #quote-output-container {
+                margin-top: 0;
+                display: block !important;
+            }
+            #quote-output {
+                box-shadow: none;
+                border: none;
+            }
+        }
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        .input-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #4A5568; /* gray-700 */
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #E2E8F0; /* gray-300 */
+            border-radius: 0.5rem;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #3B82F6; /* blue-500 */
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .area-card {
+            background-color: #F9FAFB; /* gray-50 */
+            border: 1px solid #E5E7EB; /* gray-200 */
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            position: relative;
+        }
+        .remove-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: #FEE2E2; /* red-100 */
+            color: #EF4444; /* red-500 */
+            border: none;
+            border-radius: 9999px;
+            width: 1.75rem;
+            height: 1.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .remove-btn:hover {
+            background-color: #FECACA; /* red-200 */
+        }
+        /* Dashboard Styles */
+        .dashboard-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            background-color: #F3F4F6;
+            color: #4B5563;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        .dashboard-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #E5E7EB;
+            font-size: 0.875rem;
+        }
+        .dashboard-table tr:hover {
+            background-color: #F9FAFB;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <!-- DB Status Banner (Visible if config is missing) -->
+        <div id="db-status-banner" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
+            <p class="font-bold">Database Not Configured</p>
+            <p>You are in "Offline Mode". Quotes will be generated but NOT saved. Please edit the code to add your Firebase keys.</p>
+        </div>
+
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <div class="text-center md:text-left">
+                <h1 class="text-3xl md:text-4xl font-bold text-blue-600">Playground Creations</h1>
+                <p class="text-lg text-gray-600">Impact Attenuation Safety Flooring Quote Generator</p>
+            </div>
+            <div id="admin-controls" class="flex gap-2">
+                <button id="admin-login-btn" class="bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                    Admin Login
+                </button>
+                <button id="dashboard-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                    Dashboard
+                </button>
+                 <button id="logout-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm">
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Dashboard View (Hidden by default) -->
+        <div id="dashboard-container" class="hidden mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-blue-500">
+                    <h3 class="text-gray-500 text-sm font-medium">Total Quotes</h3>
+                    <p class="text-3xl font-bold text-gray-800" id="dash-total-count">0</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-green-500">
+                    <h3 class="text-gray-500 text-sm font-medium">Total Value</h3>
+                    <p class="text-3xl font-bold text-gray-800" id="dash-total-value">R0.00</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="flex justify-between items-center p-6 border-b">
+                    <h2 class="text-xl font-bold text-gray-800">Quote History</h2>
+                    <button id="new-quote-dash-btn" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded transition-colors">
+                        + New Quote
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full dashboard-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Quote ID</th>
+                                <th>Client</th>
+                                <th>Location</th>
+                                <th class="text-right">Total</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboard-table-body">
+                            <!-- Dynamic Rows -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="dashboard-loading" class="p-8 text-center text-gray-500">Loading quotes...</div>
+                <div id="dashboard-empty" class="hidden p-8 text-center text-gray-500">No quotes found.</div>
+            </div>
+        </div>
+
+        <!-- Main Form -->
+        <main id="quote-form">
+            <!-- Section 1: Client and Site Details -->
+            <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Step 1: Client & Site Information</h2>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="input-group">
+                        <label for="clientName" class="input-label">Client Name</label>
+                        <input type="text" id="clientName" class="form-input" placeholder="e.g., ABC Primary School">
+                    </div>
+                    <div class="input-group">
+                        <label for="clientEmail" class="input-label">Email Address</label>
+                        <input type="email" id="clientEmail" class="form-input" placeholder="e.g., principal@abc.com" required>
+                    </div>
+                    <div class="input-group md:col-span-2">
+                        <label for="siteLocation" class="input-label">Site Location / Address</label>
+                        <input type="text" id="siteLocation" class="form-input" placeholder="e.g., 123 Playground Ave, Cape Town">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Area Specifications -->
+            <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                <h2 class="text-2xl font-semibold mb-2">Step 2: Area & Flooring Details</h2>
+                <p class="text-gray-500 mb-4">Add each distinct area, specifying its size, required safety system, and colour.</p>
+                <div id="areas-container">
+                    <!-- Dynamic area cards will be inserted here by JavaScript -->
+                </div>
+                <button id="add-area-btn" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    + Add Another Area
+                </button>
+            </div>
+
+            <!-- Section 3: Additional Costs -->
+            <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Step 3: Additional Costs</h2>
+                <div id="additional-costs-container" class="space-y-4">
+                    <!-- Dynamic cost rows will be inserted here by JavaScript -->
+                </div>
+                <button id="add-cost-btn" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    + Add Another Cost
+                </button>
+            </div>
+
+            <!-- Generate Quote Button -->
+            <div class="text-center">
+                 <button id="generate-quote-btn" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-12 rounded-lg text-lg transition-transform hover:scale-105">
+                    Generate & Save Quote
+                </button>
+            </div>
+        </main>
+        
+        <!-- Section 4: Generated Quote (hidden by default) -->
+        <div id="quote-output-container" class="hidden mt-8">
+            <div id="quote-output" class="bg-white p-8 rounded-xl shadow-lg border">
+                <!-- Quote Header -->
+                <div class="flex justify-between items-start border-b-2 border-black pb-6 mb-6">
+                    <div>
+                        <h2 class="text-3xl font-bold text-blue-600">Playground Creations</h2>
+                        <p class="text-gray-500">Where Play Meets Safety</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold">Quote ID: <span id="quote-id"></span></p>
+                        <p class="text-gray-600">Date: <span id="quote-date"></span></p>
+                    </div>
+                </div>
+
+                <!-- Client and Company Info -->
+                <div class="grid md:grid-cols-2 gap-8 mb-8">
+                    <div>
+                        <h3 class="font-semibold text-gray-700 mb-2">Prepared For:</h3>
+                        <p id="quote-client-name" class="font-bold"></p>
+                        <p id="quote-client-email"></p>
+                        <p id="quote-site-location"></p>
+                    </div>
+                    <div class="md:text-right">
+                        <h3 class="font-semibold text-gray-700 mb-2">Prepared By:</h3>
+                        <p class="font-bold">Playground Creations</p>
+                        <p>info@playgroundcreations.co.za</p>
+                        <p>Cape Town, Western Cape</p>
+                    </div>
+                </div>
+
+                <!-- Quote Items Table -->
+                <h3 class="font-semibold text-gray-700 mb-2">Project Scope Breakdown:</h3>
+                <table class="w-full mb-8 table-fixed">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="w-1/2 text-left font-semibold p-3">Item / Description</th>
+                            <th class="w-1/6 text-right font-semibold p-3">Qty m²</th>
+                            <th class="w-1/6 text-right font-semibold p-3">Unit Price (per m²)</th>
+                            <th class="w-1/6 text-right font-semibold p-3">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="quote-items-body">
+                       <!-- Items will be injected here by JavaScript -->
+                    </tbody>
+                </table>
+                
+                <!-- Totals Section -->
+                <div class="flex justify-end">
+                    <div class="w-full md:w-1/2">
+                        <div class="flex justify-between py-2">
+                            <span class="font-semibold text-gray-600">Subtotal:</span>
+                            <span id="quote-subtotal"></span>
+                        </div>
+                         <div class="flex justify-between py-2">
+                            <span class="font-semibold text-gray-600">VAT (15%):</span>
+                            <span id="quote-vat"></span>
+                        </div>
+                        <div class="flex justify-between py-3 border-t-2 border-black mt-2">
+                            <span class="font-bold text-xl">Quote Total:</span>
+                            <span id="quote-total" class="font-bold text-xl text-blue-600"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terms and Conditions -->
+                <div class="mt-8 text-sm text-gray-500">
+                    <h4 class="font-semibold text-gray-600 mb-2">Terms & Conditions:</h4>
+                    <p>This quote is valid for 30 days. Pricing includes supply and installation of specified safety flooring. Site must be cleared and level prior to installation. A 70% deposit is required to confirm the order.</p>
+                </div>
+            </div>
+            <!-- Action buttons for the generated quote -->
+            <div id="quote-actions" class="mt-6 text-center">
+                <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+                    <button id="edit-quote-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-6 rounded-lg w-full sm:w-auto">Edit Quote</button>
+                    <button id="generate-quote-pdf-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg w-full sm:w-auto">Quote PDF</button>
+                    <button id="generate-presi-pdf-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg w-full sm:w-auto">Presi PDF</button>
+                    <button onclick="window.resetApp()" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg w-full sm:w-auto">Create New Quote</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for validation alerts -->
+    <div id="alert-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+        <div class="relative mx-auto p-5 border w-full max-w-sm shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
+                    <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mt-4">Input Required</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p id="modal-message" class="text-sm text-gray-500"></p>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="modal-ok-btn" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+        <div class="relative mx-auto p-5 border w-full max-w-sm shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 text-center mb-4">Admin Login</h3>
+                <div class="mt-2 px-2 space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" id="admin-email" class="form-input" placeholder="admin@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input type="password" id="admin-password" class="form-input" placeholder="Enter password">
+                    </div>
+                    <p id="login-error" class="text-red-500 text-sm mt-2 hidden">Incorrect email or password</p>
+                </div>
+                <div class="items-center px-2 py-3 flex gap-2 mt-2">
+                    <button id="login-cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-full hover:bg-gray-300">
+                        Cancel
+                    </button>
+                    <button id="login-submit-btn" class="px-4 py-2 bg-blue-600 text-white text-base font-medium rounded-md w-full hover:bg-blue-700">
+                        Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, getDoc, updateDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =========================================================================
+        // 🟢 FILL IN THE BLANKS BELOW WITH YOUR GOOGLE CODE
+        // Copy the specific text from google and paste it between the quotes ""
+        // =========================================================================
+        
+        let firebaseConfig = {
+            apiKey: "PASTE_YOUR_API_KEY_HERE",
+            authDomain: "PASTE_YOUR_AUTH_DOMAIN_HERE",
+            projectId: "PASTE_YOUR_PROJECT_ID_HERE",
+            storageBucket: "PASTE_YOUR_STORAGE_BUCKET_HERE",
+            messagingSenderId: "PASTE_YOUR_MESSAGING_SENDER_ID_HERE",
+            appId: "PASTE_YOUR_APP_ID_HERE"
+        };
+
+        // If running in this AI chat environment, we use temporary keys automatically.
+        if (typeof __firebase_config !== 'undefined') {
+            firebaseConfig = JSON.parse(__firebase_config);
+        }
+        
+        // =========================================================================
+
+        let app, auth, db;
+        let isDbConnected = false;
+
+        try {
+            // Check if config is still default/empty
+            if (firebaseConfig.apiKey === "PASTE_YOUR_API_KEY_HERE" && typeof __firebase_config === 'undefined') {
+                throw new Error("Config not set");
+            }
+
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            isDbConnected = true;
+            
+            // Auth Init
+            const initAuth = async () => {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch(e) {
+                    console.error("Auth failed:", e);
+                }
+            };
+            initAuth();
+
+            onAuthStateChanged(auth, (user) => {
+                if(user) console.log("User Authenticated:", user.uid);
+            });
+
+        } catch (error) {
+            console.warn("Firebase not configured or failed to load. Running in offline mode.");
+            document.getElementById('db-status-banner').classList.remove('hidden');
+            // Disable Admin/Dashboard buttons if DB is down
+            document.getElementById('admin-login-btn').classList.add('opacity-50', 'cursor-not-allowed');
+            document.getElementById('admin-login-btn').disabled = true;
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // --- AUTH & STATE ---
+        let isAdmin = false;
+
+        // --- DOM ELEMENTS ---
+        const addAreaBtn = document.getElementById('add-area-btn');
+        const areasContainer = document.getElementById('areas-container');
+        const generateQuoteBtn = document.getElementById('generate-quote-btn');
+        const quoteForm = document.getElementById('quote-form');
+        const quoteOutputContainer = document.getElementById('quote-output-container');
+        const alertModal = document.getElementById('alert-modal');
+        const modalMessage = document.getElementById('modal-message');
+        const modalOkBtn = document.getElementById('modal-ok-btn');
+        const generateQuotePdfBtn = document.getElementById('generate-quote-pdf-btn');
+        const generatePresiPdfBtn = document.getElementById('generate-presi-pdf-btn');
+        const addCostBtn = document.getElementById('add-cost-btn');
+        const additionalCostsContainer = document.getElementById('additional-costs-container');
+        const editQuoteBtn = document.getElementById('edit-quote-btn');
+        
+        // Admin / Dashboard Elements
+        const adminLoginBtn = document.getElementById('admin-login-btn');
+        const dashboardBtn = document.getElementById('dashboard-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const loginModal = document.getElementById('login-modal');
+        const loginSubmitBtn = document.getElementById('login-submit-btn');
+        const loginCancelBtn = document.getElementById('login-cancel-btn');
+        const adminEmailInput = document.getElementById('admin-email');
+        const adminPasswordInput = document.getElementById('admin-password');
+        const loginError = document.getElementById('login-error');
+        const dashboardContainer = document.getElementById('dashboard-container');
+        const dashTotalCount = document.getElementById('dash-total-count');
+        const dashTotalValue = document.getElementById('dash-total-value');
+        const dashboardTableBody = document.getElementById('dashboard-table-body');
+        const dashboardLoading = document.getElementById('dashboard-loading');
+        const dashboardEmpty = document.getElementById('dashboard-empty');
+        const newQuoteDashBtn = document.getElementById('new-quote-dash-btn');
+
+        // --- DATA / STATE ---
+        let areaCount = 0;
+        let costCount = 0;
+        let currentQuoteId = null; 
+        let currentDocId = null; 
+
+        // Pricing Data
+        const systemPricing = {
+            'flexiplay_35': { name: 'FlexiPlay 35 (CFH 1.3m)', pricePerSqm: { black: 723.76, color: 1671.08 } },
+            'flexiplay_55': { name: 'FlexiPlay 55 (CFH 2.4m)', pricePerSqm: { black: 889.58, color: 1857.00 } },
+            'flexiplay_85': { name: 'FlexiPlay 85 (CFH 3.0m)', pricePerSqm: { black: 1150.88, color: 2098.20 } },
+            'flexiturf_40': { name: 'FlexiTurf 40 (CFH 1.6m)' },
+            'flexiturf_60': { name: 'FlexiTurf 60 (CFH 1.8m)' },
+            'flexiturf_70': { name: 'FlexiTurf 70 (CFH 2.4m)' },
+            'artificial_turf': { name: 'Artificial Turf', pricePerSqm: 0 },
+            'black_crumb_15mm': { name: '15mm Black Rubber Crumb', pricePerSqm: 427.28 },
+            'flexipad_70': { name: 'FlexiPad 70 (CFH 2.4m)', pricePerSqm: 866.10 },
+            'flexipad_40': { name: 'FlexiPad 40 (CFH 1.6m)', pricePerSqm: 665.28 },
+            'flexipad_60': { name: 'FlexiPad 60 (CFH 1.8m)', pricePerSqm: 745.50 }
+        };
+
+        const turfPricing = {
+            'flexiturf_40_synsport_eco': 897.78, 
+            'flexiturf_60_synsport_eco': 978.00,
+            'flexiturf_70_synsport_eco': 1098.60,
+            'flexiturf_40_easigrass': 1085.28,
+            'flexiturf_60_easigrass': 1165.50,
+            'flexiturf_70_easigrass': 1228.36
+        };
+
+        const systemDescriptions = {
+            'flexiplay_35_color': "FlexiPlay35: 20mm Shockpad, 15mm TPV (Thermoplastic Vulcanizate) Colour Rubber Crumb, Critical Fall Height (CFH) 1.3m. An allowance of 10% wastage has been included.",
+            'flexiplay_35_black': "FlexiPlay35: 20mm Shockpad, 15mm SBR Black Rubber Crumb, Critical Fall Height (CFH) 1.3m. An allowance of 10% wastage has been included.",
+            'flexiplay_55_color': "FlexiPlay55: 40mm Shockpad, 15mm TPV (Thermoplastic Vulcanizate) Colour Rubber Crumb, Critical Fall Height (CFH) 2.4m. An allowance of 10% wastage has been included.",
+            'flexiplay_55_black': "FlexiPlay55: 40mm Shockpad, 15mm SBR Black Rubber Crumb, Critical Fall Height (CFH) 2.4m. An allowance of 10% wastage has been included.",
+            'flexiplay_85_color': "FlexiPlay85: 70mm Shockpad, 15mm TPV (Thermoplastic Vulcanizate) Colour Rubber Crumb, Critical Fall Height (CFH) 3.0m. An allowance of 10% wastage has been included.",
+            'flexiplay_85_black': "FlexiPlay85: 70mm Shockpad, 15mm SBR Black Rubber Crumb, Critical Fall Height (CFH) 3.0m. An allowance of 10% wastage has been included.",
+            'flexiturf_40_synsport_eco': "FlexiTurf40: 40mm Shockpad, Eco 25mm Turf, no silica sand, Critical Fall Height (CFH) 1.6m. An allowance of 10% wastage has been included.",
+            'flexiturf_60_synsport_eco': "FlexiTurf60: 60mm Shockpad, Eco 25mm Turf, no silica sand, Critical Fall Height (CFH) 1.8m. An allowance of 10% wastage has been included.",
+            'flexiturf_70_synsport_eco': "FlexiTurf70: 70mm Shockpad, Eco 25mm Turf, no silica sand, Critical Fall Height (CFH) 2.4m. An allowance of 10% wastage has been included.",
+            'flexiturf_40_easigrass': "FlexiTurf40: 40mm Shockpad, Play Elite 25mm Turf, including brushed in silica sand, Critical Fall Height (CFH) 1.6m. An allowance of 10% wastage has been included.",
+            'flexiturf_60_easigrass': "FlexiTurf60: 60mm Shockpad, Play Elite 25mm Turf, including brushed in silica sand, Critical Fall Height (CFH) 1.8m. An allowance of 10% wastage has been included.",
+            'flexiturf_70_easigrass': "FlexiTurf70: 70mm Shockpad, Play Elite 25mm Turf, including brushed in silica sand, Critical Fall Height (CFH) 2.4m. An allowance of 10% wastage has been included.",
+            'artificial_turf_synsport_eco': "Eco Artificial Turf Surfacing, 25mm",
+            'artificial_turf_easigrass': "Premium Artificial Turf Surfacing, 25mm",
+            'black_crumb_15mm_black': "15mm Black Rubber Crumb only no shock pad",
+            'flexipad_70_shockpad': "FlexiPad 70: 70mm Shockpad only. Critical Fall Height (CFH) 2.4m. An allowance of 10% wastage has been included.",
+            'flexipad_40_shockpad': "FlexiPad 40: 40mm Shockpad only. Critical Fall Height (CFH) of 1.6m. An allowance of 10% wastage has been included.",
+            'flexipad_60_shockpad': "FlexiPad 60: 60mm Shockpad Only, Critical Fall Height (CFH) 1.8m. An allowance of 10% wastage has been included."
+        };
+
+        // --- HELPER FUNCTIONS ---
+        const formatCurrency = (num) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(num);
+        
+        const showModal = (message) => {
+            modalMessage.textContent = message;
+            alertModal.classList.remove('hidden');
+        };
+
+        const hideModal = () => {
+            alertModal.classList.add('hidden');
+        };
+
+        window.resetApp = () => {
+             document.getElementById('clientName').value = '';
+             document.getElementById('clientEmail').value = '';
+             document.getElementById('siteLocation').value = '';
+             areasContainer.innerHTML = '';
+             additionalCostsContainer.innerHTML = '';
+             areaCount = 0;
+             costCount = 0;
+             currentQuoteId = null;
+             currentDocId = null;
+             addArea();
+             quoteOutputContainer.classList.add('hidden');
+             quoteForm.classList.remove('hidden');
+             dashboardContainer.classList.add('hidden');
+        }
+
+        // --- PDF GENERATION LOGIC ---
+        const getRenderedPart = async (element, contentWidth) => {
+             const renderContainer = document.createElement('div');
+             document.body.appendChild(renderContainer);
+             renderContainer.style.position = 'absolute';
+             renderContainer.style.left = '-9999px';
+             renderContainer.style.width = contentWidth ? (contentWidth + 'px') : (element.clientWidth + 'px');
+             renderContainer.style.backgroundColor = '#FAF8F2'; 
+             renderContainer.appendChild(element.cloneNode(true));
+             const canvas = await html2canvas(renderContainer, { scale: 2, useCORS: true, backgroundColor: '#FAF8F2' });
+             document.body.removeChild(renderContainer);
+             const ratio = canvas.height / canvas.width;
+             return { canvas, ratio };
+         };
+
+        window.generatePresiPDF = async () => {
+            const quoteOutput = document.getElementById('quote-output');
+            generatePresiPdfBtn.textContent = 'Generating...';
+            generatePresiPdfBtn.disabled = true;
+            const renderContainer = document.createElement('div');
+            document.body.appendChild(renderContainer);
+            renderContainer.style.position = 'absolute';
+            renderContainer.style.left = '-9999px';
+            renderContainer.style.width = quoteOutput.clientWidth + 'px';
+            renderContainer.style.backgroundColor = '#FAF8F2';
+            renderContainer.style.fontFamily = window.getComputedStyle(quoteOutput).fontFamily;
+            renderContainer.style.color = window.getComputedStyle(quoteOutput).color;
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const margin = 15;
+                const contentWidth = pdfWidth - margin * 2;
+                let cursorY = margin;
+                let tableHeaderCanvas = null;
+
+                const getRenderedPartLocal = async (element) => {
+                    renderContainer.innerHTML = '';
+                    renderContainer.appendChild(element.cloneNode(true));
+                    const canvas = await html2canvas(renderContainer, { scale: 2, useCORS: true, backgroundColor: '#FAF8F2' });
+                    const ratio = canvas.height / canvas.width;
+                    const imgHeight = contentWidth * ratio;
+                    return { canvas, imgHeight };
+                };
+                
+                const addTableHeader = () => {
+                        if (tableHeaderCanvas) {
+                            const thRatio = tableHeaderCanvas.height / tableHeaderCanvas.width;
+                            const thImgHeight = contentWidth * thRatio;
+                            pdf.addImage(tableHeaderCanvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, thImgHeight);
+                            cursorY += thImgHeight;
+                        }
+                };
+
+                const topHeaderContainer = document.createElement('div');
+                topHeaderContainer.style.padding = '32px 32px 0 32px';
+                topHeaderContainer.appendChild(quoteOutput.querySelector('.flex.justify-between.items-start').cloneNode(true));
+                topHeaderContainer.appendChild(quoteOutput.querySelector('.grid.md\\:grid-cols-2').cloneNode(true));
+                
+                const topHeaderPart = await getRenderedPartLocal(topHeaderContainer);
+                pdf.addImage(topHeaderPart.canvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, topHeaderPart.imgHeight);
+                cursorY += topHeaderPart.imgHeight;
+                
+                const scopeHeadingEl = quoteOutput.querySelector('table.table-fixed').previousElementSibling;
+                if (scopeHeadingEl && scopeHeadingEl.tagName === 'H3') {
+                    const scopeContainer = document.createElement('div');
+                    scopeContainer.style.padding = '0 32px';
+                    scopeContainer.appendChild(scopeHeadingEl.cloneNode(true));
+                    const scopePart = await getRenderedPartLocal(scopeContainer);
+                    if (cursorY + scopePart.imgHeight > pdfHeight - margin) {
+                        pdf.addPage();
+                        cursorY = margin;
+                    }
+                    pdf.addImage(scopePart.canvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, scopePart.imgHeight);
+                    cursorY += scopePart.imgHeight;
+                }
+
+                const tableHeaderWrapper = document.createElement('div');
+                tableHeaderWrapper.style.padding = '0 32px';
+                const tempTableForHeader = document.createElement('table');
+                tempTableForHeader.className = 'w-full mb-8 table-fixed';
+                tempTableForHeader.appendChild(quoteOutput.querySelector('table thead').cloneNode(true));
+                tableHeaderWrapper.appendChild(tempTableForHeader);
+
+                const tableHeaderPart = await getRenderedPartLocal(tableHeaderWrapper);
+                tableHeaderCanvas = tableHeaderPart.canvas;
+                addTableHeader();
+
+                const rows = Array.from(quoteOutput.querySelectorAll('table tbody tr'));
+                for (const row of rows) {
+                    const rowWrapper = document.createElement('div');
+                    rowWrapper.style.padding = '0 32px';
+                    const tempTableForRow = document.createElement('table');
+                    tempTableForRow.className = 'w-full table-fixed';
+                    const colgroup = document.createElement('colgroup');
+                    colgroup.innerHTML = '<col style="width: 50%"><col style="width: 16.66%"><col style="width: 16.66%"><col style="width: 16.66%">';
+                    tempTableForRow.appendChild(colgroup);
+                    const tempTbody = document.createElement('tbody');
+                    tempTbody.appendChild(row.cloneNode(true))
+                    tempTableForRow.appendChild(tempTbody);
+                    rowWrapper.appendChild(tempTableForRow);
+                    const rowPart = await getRenderedPartLocal(rowWrapper);
+                    if (cursorY + rowPart.imgHeight > pdfHeight - margin) {
+                        pdf.addPage();
+                        cursorY = margin;
+                        addTableHeader();
+                    }
+                    pdf.addImage(rowPart.canvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, rowPart.imgHeight);
+                    cursorY += rowPart.imgHeight;
+                }
+
+                const footerContainer = document.createElement('div');
+                footerContainer.style.padding = '0 32px 32px 32px';
+                footerContainer.appendChild(quoteOutput.querySelector('.flex.justify-end').cloneNode(true));
+                footerContainer.appendChild(quoteOutput.querySelector('.mt-8.text-sm').cloneNode(true));
+                const footerPart = await getRenderedPartLocal(footerContainer);
+                if (cursorY + footerPart.imgHeight > pdfHeight - margin) {
+                    pdf.addPage();
+                    cursorY = margin;
+                }
+                pdf.addImage(footerPart.canvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, footerPart.imgHeight);
+
+                const quoteId = document.getElementById('quote-id').textContent;
+                pdf.save(`Playground-Creations-Quote-${quoteId}.pdf`);
+            } catch (err) {
+                console.error("PDF Generation Error: ", err);
+                showModal('Sorry, there was an error generating the PDF.');
+            } finally {
+                document.body.removeChild(renderContainer);
+                generatePresiPdfBtn.textContent = 'Presi PDF';
+                generatePresiPdfBtn.disabled = false;
+            }
+        };
+
+        window.generateQuotePDF = async () => {
+            const quoteOutput = document.getElementById('quote-output');
+            generateQuotePdfBtn.textContent = 'Generating...';
+            generateQuotePdfBtn.disabled = true;
+            const renderContainer = document.createElement('div');
+            document.body.appendChild(renderContainer);
+            renderContainer.style.position = 'absolute';
+            renderContainer.style.left = '-9999px';
+            renderContainer.style.width = quoteOutput.clientWidth + 'px';
+            renderContainer.style.backgroundColor = '#FFFFFF';
+            renderContainer.style.fontFamily = window.getComputedStyle(quoteOutput).fontFamily;
+            renderContainer.style.color = window.getComputedStyle(quoteOutput).color;
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const margin = 15;
+                const contentWidth = pdfWidth - margin * 2;
+                let cursorY = margin;
+                let tableHeaderCanvas = null;
+
+                const getRenderedPartLocal = async (element) => {
+                    renderContainer.innerHTML = '';
+                    renderContainer.appendChild(element.cloneNode(true));
+                    const canvas = await html2canvas(renderContainer, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' });
+                    const ratio = canvas.height / canvas.width;
+                    const imgHeight = contentWidth * ratio;
+                    return { canvas, imgHeight };
+                };
+                
+                const addTableHeader = () => {
+                        if (tableHeaderCanvas) {
+                            const thRatio = tableHeaderCanvas.height / tableHeaderCanvas.width;
+                            const thImgHeight = contentWidth * thRatio;
+                            pdf.addImage(tableHeaderCanvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, thImgHeight);
+                            cursorY += thImgHeight;
+                        }
+                };
+
+                const topHeaderContainer = document.createElement('div');
+                topHeaderContainer.style.padding = '32px 32px 0 32px';
+                topHeaderContainer.appendChild(quoteOutput.querySelector('.flex.justify-between.items-start').cloneNode(true));
+                topHeaderContainer.appendChild(quoteOutput.querySelector('.grid.md\\:grid-cols-2').cloneNode(true));
+                
+                const topHeaderPart = await getRenderedPartLocal(topHeaderContainer);
+                pdf.addImage(topHeaderPart.canvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, topHeaderPart.imgHeight);
+                cursorY += topHeaderPart.imgHeight;
+                
+                const scopeHeadingEl = quoteOutput.querySelector('table.table-fixed').previousElementSibling;
+                if (scopeHeadingEl && scopeHeadingEl.tagName === 'H3') {
+                    const scopeContainer = document.createElement('div');
+                    scopeContainer.style.padding = '0 32px';
+                    scopeContainer.appendChild(scopeHeadingEl.cloneNode(true));
+                    const scopePart = await getRenderedPartLocal(scopeContainer);
+                    if (cursorY + scopePart.imgHeight > pdfHeight - margin) {
+                        pdf.addPage();
+                        cursorY = margin;
+                    }
+                    pdf.addImage(scopePart.canvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, scopePart.imgHeight);
+                    cursorY += scopePart.imgHeight;
+                }
+
+                const tableHeaderWrapper = document.createElement('div');
+                tableHeaderWrapper.style.padding = '0 32px';
+                const tempTableForHeader = document.createElement('table');
+                tempTableForHeader.className = 'w-full mb-8 table-fixed';
+                tempTableForHeader.appendChild(quoteOutput.querySelector('table thead').cloneNode(true));
+                tableHeaderWrapper.appendChild(tempTableForHeader);
+
+                const tableHeaderPart = await getRenderedPartLocal(tableHeaderWrapper);
+                tableHeaderCanvas = tableHeaderPart.canvas;
+                addTableHeader();
+
+                const rows = Array.from(quoteOutput.querySelectorAll('table tbody tr'));
+                for (const row of rows) {
+                    const rowWrapper = document.createElement('div');
+                    rowWrapper.style.padding = '0 32px';
+                    const tempTableForRow = document.createElement('table');
+                    tempTableForRow.className = 'w-full table-fixed';
+                    const colgroup = document.createElement('colgroup');
+                    colgroup.innerHTML = '<col style="width: 50%"><col style="width: 16.66%"><col style="width: 16.66%"><col style="width: 16.66%">';
+                    tempTableForRow.appendChild(colgroup);
+                    const tempTbody = document.createElement('tbody');
+                    tempTbody.appendChild(row.cloneNode(true))
+                    tempTableForRow.appendChild(tempTbody);
+                    rowWrapper.appendChild(tempTableForRow);
+                    const rowPart = await getRenderedPartLocal(rowWrapper);
+                    if (cursorY + rowPart.imgHeight > pdfHeight - margin) {
+                        pdf.addPage();
+                        cursorY = margin;
+                        addTableHeader();
+                    }
+                    pdf.addImage(rowPart.canvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, rowPart.imgHeight);
+                    cursorY += rowPart.imgHeight;
+                }
+
+                const totalsContainer = document.createElement('div');
+                totalsContainer.style.padding = '0 32px 32px 32px';
+                totalsContainer.appendChild(quoteOutput.querySelector('.flex.justify-end').cloneNode(true));
+                const totalsPart = await getRenderedPartLocal(totalsContainer);
+                if (cursorY + totalsPart.imgHeight > pdfHeight - margin) {
+                    pdf.addPage();
+                    cursorY = margin;
+                }
+                pdf.addImage(totalsPart.canvas.toDataURL('image/png'), 'PNG', margin, cursorY, contentWidth, totalsPart.imgHeight);
+                cursorY += totalsPart.imgHeight;
+
+                const termsContainer = document.createElement('div');
+                termsContainer.style.padding = '0 32px 32px 32px';
+                termsContainer.appendChild(quoteOutput.querySelector('.mt-8.text-sm').cloneNode(true));
+                const termsPart = await getRenderedPartLocal(termsContainer);
+                const yPosTandC = pdfHeight - margin - termsPart.imgHeight;
+                if (cursorY > yPosTandC) {
+                    pdf.addPage();
+                }
+                pdf.addImage(termsPart.canvas.toDataURL('image/png'), 'PNG', margin, yPosTandC, contentWidth, termsPart.imgHeight);
+
+                const quoteId = document.getElementById('quote-id').textContent;
+                pdf.save(`Playground-Creations-Quote-${quoteId}.pdf`);
+            } catch (err) {
+                console.error("PDF Generation Error: ", err);
+                showModal('Sorry, there was an error generating the PDF.');
+            } finally {
+                document.body.removeChild(renderContainer);
+                generateQuotePdfBtn.textContent = 'Quote PDF';
+                generateQuotePdfBtn.disabled = false;
+            }
+        };
+
+        // --- LOGIC: AREA & COST MANAGEMENT ---
+        const updateDescription = (card) => {
+            const systemKey = card.querySelector('.system-select').value;
+            const textarea = card.querySelector('.custom-desc-area');
+            let defaultDescription = '';
+            if (systemKey.startsWith('flexiplay') || systemKey.startsWith('flexiturf') || systemKey === 'artificial_turf' || systemKey === 'black_crumb_15mm' || systemKey.startsWith('flexipad')) {
+                const colourKey = card.querySelector('.color-select').value; 
+                const descriptionKey = `${systemKey}_${colourKey}`;
+                defaultDescription = systemDescriptions[descriptionKey];
+                
+                if (!defaultDescription && systemKey.startsWith('flexiturf')) { 
+                    const selectedSystem = systemPricing[systemKey];
+                    const systemName = selectedSystem.name;
+                    const colourName = card.querySelector(`.color-select option[value="${colourKey}"]`).textContent; 
+                    defaultDescription = `${systemName}, Turf Type: ${colourName}. An allowance of 10% wastage has been included.`; 
+                } else if (defaultDescription && systemKey.startsWith('flexiplay')){ 
+                     if (!defaultDescription.includes("10% wastage has been included.")) {
+                         defaultDescription = defaultDescription.replace("7% wastage has been included.", "10% wastage has been included.");
+                     }
+                }
+            }
+            textarea.value = defaultDescription || '';
+        };
+
+        const updateColourOptions = (systemSelectElement) => {
+            const card = systemSelectElement.closest('.area-card');
+            if (!card) return;
+            const colourContainer = card.querySelector('.color-container');
+            const colourSelect = card.querySelector('.color-select');
+            const selectedSystem = systemSelectElement.value;
+            colourSelect.innerHTML = ''; 
+            if (selectedSystem.startsWith('flexiplay')) {
+                colourContainer.classList.remove('hidden');
+                colourSelect.innerHTML = `<option value="black">Black</option><option value="color">Colour</option>`;
+            } else if (selectedSystem.startsWith('flexiturf') || selectedSystem === 'artificial_turf') {
+                colourContainer.classList.remove('hidden');
+                colourSelect.innerHTML = `<option value="easigrass">Easigrass</option><option value="synsport_eco">SynSport Eco</option>`;
+            } else if (selectedSystem === 'black_crumb_15mm') {
+                colourContainer.classList.remove('hidden');
+                colourSelect.innerHTML = `<option value="black">Black</option>`;
+            } else if (selectedSystem.startsWith('flexipad')) {
+                colourContainer.classList.remove('hidden');
+                colourSelect.innerHTML = `<option value="shockpad">Shockpad Only</option>`;
+            } else {
+                colourContainer.classList.add('hidden');
+            }
+        };
+
+        const addArea = (data = null) => {
+            areaCount++;
+            const areaId = `area-${areaCount}`;
+            const card = document.createElement('div');
+            card.classList.add('area-card');
+            card.id = areaId;
+            card.innerHTML = `
+                <button class="remove-btn" data-remove="${areaId}" title="Remove Area">&times;</button>
+                <h3 class="font-semibold text-lg mb-3 border-b pb-2">Area ${areaCount}</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+                    <div class="md:col-span-2">
+                        <label class="input-label text-sm">Area Description</label>
+                        <input type="text" class="form-input area-desc text-sm" placeholder="e.g., Main Play Zone" value="Area ${areaCount}">
+                    </div>
+                    <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-x-4">
+                        <div>
+                            <label class="input-label text-sm">Safety System (CFH)</label>
+                            <select class="form-input system-select text-sm">
+                                <option value="flexiplay_35">FlexiPlay 35 (CFH 1.3m)</option>
+                                <option value="flexiplay_55" selected>FlexiPlay 55 (CFH 2.4m)</option> 
+                                <option value="flexiplay_85">FlexiPlay 85 (CFH 3.0m)</option>
+                                <option value="flexiturf_40">FlexiTurf 40 (CFH 1.6m)</option>
+                                <option value="flexiturf_60">FlexiTurf 60 (CFH 1.8m)</option>
+                                <option value="flexiturf_70">FlexiTurf 70 (CFH 2.4m)</option>
+                                <option value="flexipad_70">FlexiPad 70 (CFH 2.4m)</option>
+                                <option value="flexipad_40">FlexiPad 40 (CFH 1.6m)</option>
+                                <option value="flexipad_60">FlexiPad 60 (CFH 1.8m)</option>
+                                <option value="artificial_turf">Artificial Turf</option>
+                                <option value="black_crumb_15mm">15mm Black Rubber Crumb</option>
+                            </select>
+                        </div>
+                        <div class="color-container">
+                            <label class="input-label text-sm">Flooring Colour</label>
+                            <select class="form-input color-select text-sm"></select>
+                        </div>
+                        <div>
+                            <label class="input-label text-sm">Material Wastage Markup</label>
+                            <select class="form-input wastage-markup-select text-sm">
+                                <option value="0" selected>None</option>
+                                <option value="0.05">5%</option>
+                                <option value="0.10">10%</option>
+                                <option value="0.15">15%</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="input-label text-sm">Installation (per m²)</label>
+                        <select class="form-input installation-select text-sm">
+                            <option value="0">None</option>
+                            <option value="150">R150.00</option>
+                            <option value="250">R250.00</option>
+                            <option value="350">R350.00</option>
+                            <option value="450" selected>R450.00</option>
+                            <option value="550">R550.00</option>
+                            <option value="650">R650.00</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="input-label text-sm">Base Preparation (per m²)</label>
+                        <select class="form-input base-prep-select text-sm">
+                            <option value="0" selected>None</option>
+                            <option value="150">R150.00</option>
+                            <option value="250">R250.00</option>
+                            <option value="350">R350.00</option>
+                            <option value="450">R450.00</option>
+                            <option value="550">R550.00</option>
+                            <option value="650">R650.00</option>
+                        </select>
+                        <textarea class="form-input base-prep-desc hidden mt-2 text-sm" rows="3" placeholder="Describe the base preparation work...">G5 base prepared for the installation of impact surfacing, including edge paving to ensure a clean and finished perimeter</textarea>
+                    </div>
+                    <div class="md:col-span-2 grid grid-cols-2 gap-4 pt-2">
+                            <div>
+                            <label class="input-label text-sm">Length (m)</label>
+                            <input type="number" class="form-input area-length text-sm" placeholder="Optional">
+                        </div>
+                        <div>
+                            <label class="input-label text-sm">Width (m)</label>
+                            <input type="number" class="form-input area-width text-sm" placeholder="Optional">
+                        </div>
+                    </div>
+                        <div class="md:col-span-2 text-center text-gray-500 text-xs my-1">OR</div>
+                    <div class="md:col-span-2">
+                        <label class="input-label text-sm font-medium">Total Area (m²)</label>
+                        <input type="number" class="form-input area-sqm text-sm" placeholder="Enter total area directly">
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <button type="button" class="text-blue-600 hover:text-blue-800 text-sm font-medium toggle-desc-btn">Edit System Description</button>
+                    <textarea class="form-input custom-desc-area hidden mt-2 text-sm" rows="4"></textarea>
+                </div>
+            `;
+            areasContainer.appendChild(card);
+            const systemSelect = card.querySelector('.system-select');
+            updateColourOptions(systemSelect);
+            if (data) {
+                card.querySelector('.area-desc').value = data.description;
+                systemSelect.value = data.system;
+                updateColourOptions(systemSelect); 
+                const colorSelect = card.querySelector('.color-select');
+                if (data.color && !colorSelect.parentElement.classList.contains('hidden')) {
+                    colorSelect.value = data.color;
+                }
+                card.querySelector('.wastage-markup-select').value = data.wastage;
+                card.querySelector('.installation-select').value = data.installation;
+                card.querySelector('.base-prep-select').value = data.basePrep;
+                card.querySelector('.base-prep-desc').value = data.basePrepDesc || '';
+                if(data.basePrep > 0) card.querySelector('.base-prep-desc').classList.remove('hidden');
+                card.querySelector('.area-length').value = data.length || '';
+                card.querySelector('.area-width').value = data.width || '';
+                card.querySelector('.area-sqm').value = data.sqm;
+                card.querySelector('.custom-desc-area').value = data.customDesc;
+            } else {
+                 updateDescription(card);
+            }
+        };
+
+        const addCostRow = (data = null) => {
+            costCount++;
+            const costId = `cost-${costCount}`;
+            const row = document.createElement('div');
+            row.classList.add('area-card', 'p-4');
+            row.id = costId;
+            row.innerHTML = `
+                <button class="remove-btn" data-remove="${costId}" title="Remove Cost">&times;</button>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <div>
+                        <label class="input-label text-sm">Item Type</label>
+                        <select class="form-input cost-type-select text-sm">
+                            <option value="travel_accom">Travel & Accommodation</option>
+                            <option value="playsafe">Playsafe Africa Inspection</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <input type="text" class="form-input cost-desc-input hidden mt-2 text-sm" placeholder="Custom Description">
+                    </div>
+                    <div>
+                        <label class="input-label text-sm">Quantity</label>
+                        <input type="number" class="form-input cost-qty-input text-sm" placeholder="e.g., 1">
+                    </div>
+                    <div>
+                        <label class="input-label text-sm">Unit Price</label>
+                        <input type="number" class="form-input cost-price-input text-sm" placeholder="e.g., 2500">
+                    </div>
+                </div>
+            `;
+            additionalCostsContainer.appendChild(row);
+            if (data) {
+                const typeSelect = row.querySelector('.cost-type-select');
+                typeSelect.value = data.type;
+                if(data.type === 'other') {
+                    row.querySelector('.cost-desc-input').classList.remove('hidden');
+                    row.querySelector('.cost-desc-input').value = data.description;
+                }
+                row.querySelector('.cost-qty-input').value = data.qty;
+                row.querySelector('.cost-price-input').value = data.price;
+            }
+        };
+
+        const handleAreaCalculation = (e) => {
+            const card = e.target.closest('.area-card');
+            if (!card) return;
+            const lengthInput = card.querySelector('.area-length');
+            const widthInput = card.querySelector('.area-width');
+            const sqmInput = card.querySelector('.area-sqm');
+            if (e.target === lengthInput || e.target === widthInput) {
+                const length = parseFloat(lengthInput.value) || 0;
+                const width = parseFloat(widthInput.value) || 0;
+                if (length > 0 && width > 0) {
+                    sqmInput.value = (length * width).toFixed(2);
+                }
+            }
+            if(e.target === sqmInput && sqmInput.value) {
+                lengthInput.value = '';
+                widthInput.value = '';
+            }
+        };
+
+        // --- DASHBOARD & ADMIN LOGIC ---
+        const toggleAdminControls = (isLoggedIn) => {
+            isAdmin = isLoggedIn;
+            if (isLoggedIn) {
+                adminLoginBtn.classList.add('hidden');
+                dashboardBtn.classList.remove('hidden');
+                logoutBtn.classList.remove('hidden');
+                showDashboard();
+            } else {
+                adminLoginBtn.classList.remove('hidden');
+                dashboardBtn.classList.add('hidden');
+                logoutBtn.classList.add('hidden');
+                dashboardContainer.classList.add('hidden');
+                quoteForm.classList.remove('hidden');
+            }
+        };
+
+        const showDashboard = async () => {
+            dashboardContainer.classList.remove('hidden');
+            quoteForm.classList.add('hidden');
+            quoteOutputContainer.classList.add('hidden');
+            dashboardLoading.classList.remove('hidden');
+            dashboardEmpty.classList.add('hidden');
+            dashboardTableBody.innerHTML = '';
+            
+            if(!isDbConnected) {
+                dashboardLoading.textContent = "Database not configured.";
+                return;
+            }
+
+            try {
+                const quotesRef = collection(db, 'artifacts', appId, 'public', 'data', 'quotes');
+                const q = query(quotesRef); 
+                const querySnapshot = await getDocs(q);
+                let quotes = [];
+                querySnapshot.forEach((doc) => {
+                    quotes.push({ id: doc.id, ...doc.data() });
+                });
+                quotes.sort((a, b) => new Date(b.date) - new Date(a.date));
+                dashTotalCount.textContent = quotes.length;
+                const totalValue = quotes.reduce((acc, curr) => acc + (curr.total || 0), 0);
+                dashTotalValue.textContent = formatCurrency(totalValue);
+                dashboardLoading.classList.add('hidden');
+                if (quotes.length === 0) {
+                    dashboardEmpty.classList.remove('hidden');
+                } else {
+                    quotes.forEach(quote => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${new Date(quote.date).toLocaleDateString()}</td>
+                            <td class="font-mono text-xs">${quote.quote_number}</td>
+                            <td>${quote.client_name}</td>
+                            <td>${quote.site_location}</td>
+                            <td class="text-right font-bold">${formatCurrency(quote.total)}</td>
+                            <td class="text-center">
+                                <button class="text-blue-600 hover:text-blue-800 mr-2 load-quote-btn" data-id="${quote.id}">Edit</button>
+                                <button class="text-red-600 hover:text-red-800 delete-quote-btn" data-id="${quote.id}">Delete</button>
+                            </td>
+                        `;
+                        dashboardTableBody.appendChild(tr);
+                    });
+                }
+            } catch (error) {
+                console.error("Error fetching quotes:", error);
+                dashboardLoading.textContent = "Error loading quotes.";
+            }
+        };
+
+        const loadQuoteToEdit = async (docId) => {
+            if(!isDbConnected) return;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'quotes', docId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    currentQuoteId = data.quote_number;
+                    currentDocId = docId;
+                    document.getElementById('clientName').value = data.client_name;
+                    document.getElementById('clientEmail').value = data.client_email;
+                    document.getElementById('siteLocation').value = data.site_location;
+                    areasContainer.innerHTML = '';
+                    areaCount = 0;
+                    if (data.area_data && Array.isArray(data.area_data)) {
+                        data.area_data.forEach(areaData => addArea(areaData));
+                    }
+                    additionalCostsContainer.innerHTML = '';
+                    costCount = 0;
+                    if (data.cost_data && Array.isArray(data.cost_data)) {
+                        data.cost_data.forEach(costData => addCostRow(costData));
+                    }
+                    dashboardContainer.classList.add('hidden');
+                    quoteForm.classList.remove('hidden');
+                    window.scrollTo(0,0);
+                    showModal("Quote loaded for editing.");
+                } else {
+                    showModal("Quote not found!");
+                }
+            } catch (error) {
+                console.error("Error loading quote:", error);
+                showModal("Error loading quote.");
+            }
+        };
+
+        const deleteQuote = async (docId) => {
+            if(!isDbConnected) return;
+            if (confirm("Are you sure you want to delete this quote?")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'quotes', docId));
+                    showDashboard(); 
+                } catch (error) {
+                    console.error("Error deleting quote:", error);
+                    showModal("Failed to delete quote.");
+                }
+            }
+        };
+
+        // --- MAIN GENERATE & SAVE FUNCTION ---
+        const generateQuote = async () => {
+            const clientName = document.getElementById('clientName').value;
+            const clientEmail = document.getElementById('clientEmail').value;
+            const siteLocation = document.getElementById('siteLocation').value;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!clientName || !siteLocation || !clientEmail) {
+                showModal('Please fill in the Client Name, Site Location, and Email Address.');
+                return;
+            }
+            if (!emailRegex.test(clientEmail)) {
+                showModal('Please enter a valid email address.');
+                return;
+            }
+            const quoteItemsBody = document.getElementById('quote-items-body');
+            quoteItemsBody.innerHTML = ''; 
+            let quoteItemsHTML = '';
+            let subtotal = 0;
+            let totalBasePrepSqm = 0;
+            let totalInstallationSqm = 0;
+            let totalBasePrepCost = 0;
+            let totalInstallationCost = 0;
+            let lastBasePrepDescription = "G5 base prepared for the installation of impact surfacing, including edge paving to ensure a clean and finished perimeter"; 
+            let avgBasePrepPricePerSqm = 0;
+            let avgInstallationPricePerSqm = 0;
+            const areaElements = areasContainer.querySelectorAll('.area-card');
+            if(areaElements.length === 0) {
+                 showModal('Please add at least one area to the quote.');
+                return;
+            }
+            const areaDataForSave = [];
+            areaElements.forEach(area => {
+                const sqm = parseFloat(area.querySelector('.area-sqm').value) || 0;
+                const areaObj = {
+                    description: area.querySelector('.area-desc').value,
+                    system: area.querySelector('.system-select').value,
+                    color: area.querySelector('.color-select').value,
+                    wastage: area.querySelector('.wastage-markup-select').value,
+                    installation: area.querySelector('.installation-select').value,
+                    basePrep: area.querySelector('.base-prep-select').value,
+                    basePrepDesc: area.querySelector('.base-prep-desc').value,
+                    length: area.querySelector('.area-length').value,
+                    width: area.querySelector('.area-width').value,
+                    sqm: area.querySelector('.area-sqm').value,
+                    customDesc: area.querySelector('.custom-desc-area').value
+                };
+                areaDataForSave.push(areaObj);
+                if (sqm > 0) {
+                    const wastagePercent = parseFloat(areaObj.wastage) || 0;
+                    const materialSqm = sqm * (1 + wastagePercent);
+                    const selectedSystem = systemPricing[areaObj.system];
+                    let finalPricePerSqm;
+                    if (areaObj.system.startsWith('flexiturf')) {
+                        const priceKey = `${areaObj.system}_${areaObj.color}`;
+                        finalPricePerSqm = turfPricing[priceKey] || 0;
+                    } else if (areaObj.system.startsWith('flexiplay')) {
+                        finalPricePerSqm = selectedSystem.pricePerSqm[areaObj.color] || 0;
+                    } else if (areaObj.system === 'artificial_turf') {
+                        if(areaObj.color === 'synsport_eco') {
+                            finalPricePerSqm = 232.50;
+                        } else { 
+                            finalPricePerSqm = 489.50; 
+                        }
+                    } else {
+                        finalPricePerSqm = selectedSystem.pricePerSqm || 0;
+                    }
+                    const materialLineTotal = materialSqm * finalPricePerSqm;
+                    subtotal += materialLineTotal;
+                    quoteItemsHTML += `
+                        <tr class="border-b border-black">
+                            <td class="p-3 align-top">
+                                <p class="font-semibold">${areaObj.description || 'Unnamed Area'}</p>
+                                <p class="text-xs text-gray-600">${areaObj.customDesc}</p>
+                            </td>
+                            <td class="text-right p-3 align-top">${materialSqm.toFixed(2)}</td>
+                            <td class="text-right p-3 align-top">${formatCurrency(finalPricePerSqm)}</td>
+                            <td class="text-right p-3 align-top font-semibold">${formatCurrency(materialLineTotal)}</td>
+                        </tr>
+                    `;
+                    const basePrepCostPerSqm = parseFloat(areaObj.basePrep) || 0;
+                    if (basePrepCostPerSqm > 0) {
+                        const basePrepTotal = sqm * basePrepCostPerSqm;
+                        subtotal += basePrepTotal;
+                        totalBasePrepSqm += sqm;
+                        totalBasePrepCost += basePrepTotal;
+                        lastBasePrepDescription = areaObj.basePrepDesc || lastBasePrepDescription; 
+                    }
+                    const installationCostPerSqm = parseFloat(areaObj.installation) || 0;
+                    if (installationCostPerSqm > 0) {
+                        const installationTotal = sqm * installationCostPerSqm;
+                        subtotal += installationTotal;
+                        totalInstallationSqm += sqm;
+                        totalInstallationCost += installationTotal;
+                    }
+                }
+            });
+            if (totalBasePrepCost > 0) {
+                 avgBasePrepPricePerSqm = totalBasePrepCost / totalBasePrepSqm;
+                 quoteItemsHTML += `
+                     <tr class="border-b border-black bg-gray-50/50">
+                         <td class="p-3 align-top">
+                             <p class="font-semibold">Base Preparation</p>
+                             <p class="text-xs text-gray-600">${lastBasePrepDescription}</p>
+                         </td>
+                         <td class="text-right p-3 align-top">${totalBasePrepSqm.toFixed(2)}</td>
+                         <td class="text-right p-3 align-top">${formatCurrency(avgBasePrepPricePerSqm)}</td>
+                         <td class="text-right p-3 align-top font-semibold">${formatCurrency(totalBasePrepCost)}</td>
+                     </tr>
+                  `;
+            }
+             if (totalInstallationCost > 0) {
+                 avgInstallationPricePerSqm = totalInstallationCost / totalInstallationSqm;
+                 quoteItemsHTML += `
+                     <tr class="border-b border-black bg-gray-50/50">
+                         <td class="p-3 align-top">
+                             <p class="font-semibold">Installation</p>
+                             <p class="text-xs text-gray-600">Installation of impact surfacing</p>
+                           </td>
+                         <td class="text-right p-3 align-top">${totalInstallationSqm.toFixed(2)}</td>
+                         <td class="text-right p-3 align-top">${formatCurrency(avgInstallationPricePerSqm)}</td>
+                         <td class="text-right p-3 align-top font-semibold">${formatCurrency(totalInstallationCost)}</td>
+                     </tr>
+                  `;
+            }
+            const costElements = additionalCostsContainer.querySelectorAll('.area-card');
+            const costDataForSave = [];
+            let hasAdditionalCosts = false;
+            costElements.forEach(costRow => {
+                const type = costRow.querySelector('.cost-type-select').value;
+                const qty = parseFloat(costRow.querySelector('.cost-qty-input').value) || 0;
+                const price = parseFloat(costRow.querySelector('.cost-price-input').value) || 0;
+                const costObj = {
+                    type,
+                    description: type === 'other' ? costRow.querySelector('.cost-desc-input').value : '',
+                    qty,
+                    price
+                };
+                costDataForSave.push(costObj);
+                if (qty > 0 && price > 0) {
+                    hasAdditionalCosts = true;
+                    let description = '';
+                    if (type === 'other') description = costObj.description || 'Other Cost';
+                    else if (type === 'playsafe') description = 'Playsafe Africa Post Installation Inspection and Sign Off';
+                    else description = 'Travel & Accommodation';
+                    const total = qty * price;
+                    subtotal += total;
+                    quoteItemsHTML += `
+                        <tr class="border-b border-black">
+                            <td class="p-3 align-top">
+                                <p class="font-semibold">${description}</p>
+                            </td>
+                            <td class="text-right p-3 align-top">${qty}</td>
+                            <td class="text-right p-3 align-top">${formatCurrency(price)}</td>
+                            <td class="text-right p-3 align-top font-semibold">${formatCurrency(total)}</td>
+                        </tr>
+                    `;
+                }
+            });
+            if (areaElements.length === 0 && !hasAdditionalCosts && totalBasePrepCost === 0 && totalInstallationCost === 0) {
+                 showModal('Please add at least one area or cost to generate a quote.');
+                return;
+            }
+            quoteItemsBody.innerHTML = quoteItemsHTML;
+            const vat = subtotal * 0.15;
+            const total = subtotal + vat;
+            if (!currentQuoteId) {
+                currentQuoteId = `PC-${Date.now().toString().slice(-6)}`;
+            }
+            const quoteData = {
+                quote_number: currentQuoteId,
+                date: new Date().toISOString(),
+                client_name: clientName,
+                client_email: clientEmail,
+                site_location: siteLocation,
+                area_data: areaDataForSave,
+                cost_data: costDataForSave,
+                subtotal: subtotal,
+                vat: vat,
+                total: total
+            };
+            const saveBtn = document.getElementById('generate-quote-btn');
+            const originalBtnText = saveBtn.innerText;
+            saveBtn.innerText = "Saving...";
+            saveBtn.disabled = true;
+
+            // Only attempt save if connected
+            if (isDbConnected) {
+                try {
+                    if(currentDocId) {
+                         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'quotes', currentDocId);
+                         await updateDoc(docRef, quoteData);
+                    } else {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'quotes'), quoteData);
+                    }
+                } catch (e) {
+                    console.error("Error saving quote", e);
+                    showModal("Quote generated, but failed to save to database. (Check console)");
+                }
+            } else {
+                console.warn("Skipping save - offline mode");
+            }
+            saveBtn.innerText = originalBtnText;
+            saveBtn.disabled = false;
+
+            document.getElementById('quote-id').textContent = currentQuoteId;
+            document.getElementById('quote-date').textContent = new Date().toLocaleDateString('en-ZA');
+            document.getElementById('quote-client-name').textContent = clientName;
+            document.getElementById('quote-client-email').textContent = clientEmail;
+            document.getElementById('quote-site-location').textContent = siteLocation;
+            document.getElementById('quote-subtotal').textContent = formatCurrency(subtotal);
+            document.getElementById('quote-vat').textContent = formatCurrency(vat);
+            document.getElementById('quote-total').textContent = formatCurrency(total);
+            quoteForm.classList.add('hidden');
+            quoteOutputContainer.classList.remove('hidden');
+            window.scrollTo(0, 0);
+        };
+
+        const editQuote = () => {
+            quoteOutputContainer.classList.add('hidden');
+            quoteForm.classList.remove('hidden');
+            window.scrollTo(0, 0);
+        };
+
+        // --- EVENT LISTENERS ---
+        addAreaBtn.addEventListener('click', () => addArea());
+        addCostBtn.addEventListener('click', () => addCostRow());
+        generateQuoteBtn.addEventListener('click', generateQuote);
+        generateQuotePdfBtn.addEventListener('click', window.generateQuotePDF);
+        generatePresiPdfBtn.addEventListener('click', window.generatePresiPDF); 
+        editQuoteBtn.addEventListener('click', editQuote);
+        modalOkBtn.addEventListener('click', hideModal);
+
+        adminLoginBtn.addEventListener('click', () => {
+            loginModal.classList.remove('hidden');
+            adminEmailInput.value = '';
+            adminPasswordInput.value = '';
+            loginError.classList.add('hidden');
+        });
+        loginCancelBtn.addEventListener('click', () => loginModal.classList.add('hidden'));
+        loginSubmitBtn.addEventListener('click', () => {
+            const email = adminEmailInput.value.trim();
+            const password = adminPasswordInput.value;
+            if(email === 'trevor@playgroundcreations.co.za' && password === 'Punk@890890') {
+                loginModal.classList.add('hidden');
+                toggleAdminControls(true);
+            } else {
+                loginError.classList.remove('hidden');
+            }
+        });
+        logoutBtn.addEventListener('click', () => toggleAdminControls(false));
+        dashboardBtn.addEventListener('click', showDashboard);
+        newQuoteDashBtn.addEventListener('click', () => {
+            window.resetApp();
+        });
+
+        areasContainer.addEventListener('change', (e) => {
+            if (e.target.matches('.system-select')) updateColourOptions(e.target);
+            if (e.target.matches('.system-select') || e.target.matches('.color-select')) updateDescription(e.target.closest('.area-card'));
+            if (e.target.matches('.base-prep-select')) {
+                 const card = e.target.closest('.area-card');
+                 const descTextarea = card.querySelector('.base-prep-desc');
+                 e.target.value !== '0' ? descTextarea.classList.remove('hidden') : descTextarea.classList.add('hidden');
+            }
+        });
+        areasContainer.addEventListener('input', handleAreaCalculation);
+        areasContainer.addEventListener('click', (e) => {
+            if (e.target.matches('.remove-btn')) e.target.closest('.area-card').remove();
+            if (e.target.matches('.toggle-desc-btn')) e.target.closest('.area-card').querySelector('.custom-desc-area').classList.toggle('hidden');
+        });
+
+        additionalCostsContainer.addEventListener('click', (e) => {
+            if(e.target.matches('.remove-btn')) e.target.closest('.area-card').remove();
+        });
+        additionalCostsContainer.addEventListener('change', (e) => {
+            if (e.target.matches('.cost-type-select')) {
+                const row = e.target.closest('.area-card');
+                e.target.value === 'other' ? row.querySelector('.cost-desc-input').classList.remove('hidden') : row.querySelector('.cost-desc-input').classList.add('hidden');
+            }
+        });
+
+        dashboardTableBody.addEventListener('click', (e) => {
+            if(e.target.classList.contains('load-quote-btn')) {
+                loadQuoteToEdit(e.target.dataset.id);
+            }
+            if(e.target.classList.contains('delete-quote-btn')) {
+                deleteQuote(e.target.dataset.id);
+            }
+        });
+
+        addArea();
+    </script>
+</body>
+</html>
